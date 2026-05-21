@@ -1,0 +1,20 @@
+# Source — not needed by consumers, they get the compiled dist/
+src/
+
+# Tests
+tests/
+vitest.config.ts
+
+# Example app
+examples/
+
+# Build tooling config
+tsup.config.ts
+tsconfig.json
+
+# CI / GitHub config
+.github/
+
+# Dev files
+*.tsbuildinfo
+coverage/

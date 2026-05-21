@@ -1,0 +1,45 @@
+name: React Compatibility Matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly to catch upstream breakage
+    - cron: "0 6 * * 1"
+
+jobs:
+  react-compat:
+    name: React ${{ matrix.react }} compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        react: ["18", "19"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install base dependencies
+        run: npm ci
+
+      - name: Install React ${{ matrix.react }}
+        run: |
+          npm install --no-save \
+            react@${{ matrix.react }} \
+            react-dom@${{ matrix.react }} \
+            @types/react@${{ matrix.react }} \
+            @types/react-dom@${{ matrix.react }}
+
+      - name: Build
+        run: npm run build
+
+      - name: Test with React ${{ matrix.react }}
+        run: npm test
