@@ -1,6 +1,6 @@
 {
   "name": "react-performance-analyzer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Lightweight zero-runtime-dependency React performance analyzer for detecting unnecessary re-renders, slow components, and unstable props.",
   "type": "module",
   "sideEffects": false,
