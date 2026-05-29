@@ -7,7 +7,7 @@ import {
 } from "react";
 import { handleProfilerRender } from "../core/PerformanceAnalyzer.js";
 import { getOptions } from "../core/PerformanceStore.js";
-import { isDevelopment } from "../utils/environment.js";
+import { isDevelopment, sanitizeComponentId } from "../utils/environment.js";
 
 interface AnalyzeRenderProps {
   id: string;
@@ -15,6 +15,8 @@ interface AnalyzeRenderProps {
 }
 
 export function AnalyzeRender({ id, children }: AnalyzeRenderProps): JSX.Element {
+  const safeId = sanitizeComponentId(id);
+
   // useCallback must be called before any conditional returns (Rules of Hooks).
   // The callback has a stable reference because handleProfilerRender reads
   // options from module-level state rather than via closure.
@@ -34,7 +36,7 @@ export function AnalyzeRender({ id, children }: AnalyzeRenderProps): JSX.Element
   }
 
   return (
-    <Profiler id={id} onRender={onRender}>
+    <Profiler id={safeId} onRender={onRender}>
       {children}
     </Profiler>
   );

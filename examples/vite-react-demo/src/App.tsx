@@ -34,12 +34,10 @@ function Counter({ count, onIncrement }: { count: number; onIncrement: () => voi
 // ─── 3. HOC usage ────────────────────────────────────────────────────────────
 
 function SlowComponent({ label }: { label: string }) {
-  // Simulate a slow render
-  const end = performance.now() + 20;
-  while (performance.now() < end) {
-    // busy wait — for demo only, never do this in production
-  }
-  return <div>Slow: {label}</div>;
+  // Simulate CPU work with measurable array computation — avoids blocking the event loop
+  const items = Array.from({ length: 10_000 }, (_, i) => i * Math.random());
+  const sum = items.reduce((a, b) => a + b, 0);
+  return <div>Slow: {label} ({Math.round(sum)})</div>;
 }
 
 const AnalyzedSlowComponent = withPerformanceAnalyzer(SlowComponent, {

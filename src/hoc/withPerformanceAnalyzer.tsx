@@ -1,5 +1,6 @@
 import { type ComponentType, type FC, type JSX } from "react";
 import { AnalyzeRender } from "../components/AnalyzeRender.js";
+import { sanitizeComponentId } from "../utils/environment.js";
 
 interface WithPerformanceAnalyzerOptions {
   id: string;
@@ -12,11 +13,12 @@ export function withPerformanceAnalyzer<P extends object>(
   Component: ComponentType<P>,
   options: WithPerformanceAnalyzerOptions
 ): FC<P> {
-  const displayName =
+  const displayName = sanitizeComponentId(
     options.id ||
     Component.displayName ||
     Component.name ||
-    "Component";
+    "Component"
+  );
 
   const Wrapped: FC<P> = (props: P): JSX.Element => (
     <AnalyzeRender id={displayName}>

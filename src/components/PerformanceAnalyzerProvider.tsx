@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useLayoutEffect,
   useMemo,
   type JSX,
   type ReactNode,
@@ -11,7 +12,7 @@ import type { PerformanceAnalyzerOptions } from "../types/index.js";
 
 interface PerformanceAnalyzerContextValue {
   isEnabled: boolean;
-  options: Required<PerformanceAnalyzerOptions>;
+  options: ReturnType<typeof getOptions>;
 }
 
 const PerformanceAnalyzerContext =
@@ -38,10 +39,12 @@ export function PerformanceAnalyzerProvider({
     (resolvedOpts.allowProduction ? true : isDevelopment()) &&
     (resolvedOpts.enabled !== false);
 
-  // Synchronize options to the module-level store on every render so that
-  // dynamic prop changes (e.g. toggling `enabled`) take effect immediately.
-  // configureStore only writes to a plain JS object — safe to call during render.
-  configureStore({ ...resolvedOpts, enabled: isEnabled });
+  // Synchronize options to the module-level store after each commit.
+  // Using useLayoutEffect avoids writing to shared state during React's render
+  // phase, which prevents race conditions in Concurrent Mode (VULN-04).
+  useLayoutEffect(() => {
+    configureStore({ ...resolvedOpts, enabled: isEnabled });
+  });
 
   const contextValue = useMemo<PerformanceAnalyzerContextValue>(
     () => ({ isEnabled, options: getOptions() }),

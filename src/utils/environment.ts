@@ -22,3 +22,20 @@ export function isDevelopment(): boolean {
 export function isProduction(): boolean {
   return !isDevelopment();
 }
+
+/**
+ * Pattern for safe component identifiers: alphanumeric, spaces, hyphens, underscores, dots.
+ * Max 128 characters. Rejects characters that could cause injection in message strings
+ * or HTML rendering contexts (VULN-02).
+ */
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_\-. ]{1,128}$/;
+
+/**
+ * Sanitizes a component ID to prevent injection into warning messages and exported JSON.
+ * Replaces disallowed characters with underscores and truncates to 128 chars.
+ */
+export function sanitizeComponentId(id: string): string {
+  if (typeof id !== "string" || id.length === 0) return "UnknownComponent";
+  if (SAFE_ID_PATTERN.test(id)) return id;
+  return id.replace(/[^a-zA-Z0-9_\-. ]/g, "_").slice(0, 128);
+}

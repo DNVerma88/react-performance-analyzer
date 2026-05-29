@@ -6,6 +6,7 @@ export { AnalyzeRender } from "./components/AnalyzeRender.js";
 
 // Hooks
 export { useRenderAnalyzer } from "./hooks/useRenderAnalyzer.js";
+export { useRenderCount } from "./hooks/useRenderCount.js";
 
 // HOC
 export { withPerformanceAnalyzer } from "./hoc/withPerformanceAnalyzer.js";
@@ -14,6 +15,8 @@ export { withPerformanceAnalyzer } from "./hoc/withPerformanceAnalyzer.js";
 export {
   clearMetrics as clearPerformanceReport,
   configureStore as configurePerformanceAnalyzer,
+  getMetric,
+  subscribeToStore,
 } from "./core/PerformanceStore.js";
 
 export {
@@ -24,6 +27,8 @@ export {
   exportReportJSON,
   buildReport,
 } from "./core/MetricsReporter.js";
+
+export type { ExportReportOptions, PrintReportOptions, SortBy } from "./core/MetricsReporter.js";
 
 // Types
 export type {

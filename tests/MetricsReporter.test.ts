@@ -66,4 +66,45 @@ describe("MetricsReporter", () => {
     logSpy.mockRestore();
     groupEndSpy.mockRestore();
   });
+
+  // ── Feature #5: sortBy ───────────────────────────────────────────────────
+  it("exportReportJSON sorts by renders descending", () => {
+    recordRender("A", "mount", 1);
+    recordRender("B", "mount", 1);
+    recordRender("B", "update", 1);
+    recordRender("B", "update", 1); // B: 3 renders, A: 1 render
+    const json = exportReportJSON({ sortBy: "renders" });
+    const parsed = JSON.parse(json) as { metrics: Array<{ id: string }> };
+    expect(parsed.metrics[0].id).toBe("B");
+    expect(parsed.metrics[1].id).toBe("A");
+  });
+
+  it("exportReportJSON sorts by maxDuration descending", () => {
+    recordRender("Slow", "mount", 100);
+    recordRender("Fast", "mount", 5);
+    const json = exportReportJSON({ sortBy: "maxDuration" });
+    const parsed = JSON.parse(json) as { metrics: Array<{ id: string }> };
+    expect(parsed.metrics[0].id).toBe("Slow");
+  });
+
+  it("printReport accepts sortBy option without throwing", () => {
+    const groupSpy = vi.spyOn(console, "group").mockImplementation(() => {});
+    const tableSpy = vi.spyOn(console, "table").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const groupEndSpy = vi.spyOn(console, "groupEnd").mockImplementation(() => {});
+    recordRender("Comp", "mount", 5);
+    expect(() => printReport({ sortBy: "maxDuration" })).not.toThrow();
+    groupSpy.mockRestore();
+    tableSpy.mockRestore();
+    logSpy.mockRestore();
+    groupEndSpy.mockRestore();
+  });
+
+  it("exportReportJSON includes minDurationMs in each metric", () => {
+    recordRender("M", "mount", 10);
+    recordRender("M", "update", 3);
+    const json = exportReportJSON();
+    const parsed = JSON.parse(json) as { metrics: Array<Record<string, unknown>> };
+    expect(parsed.metrics[0]).toHaveProperty("minDurationMs", 3);
+  });
 });

@@ -4,6 +4,7 @@ import React from "react";
 import { AnalyzeRender } from "../src/components/AnalyzeRender";
 import { PerformanceAnalyzerProvider } from "../src/components/PerformanceAnalyzerProvider";
 import { useRenderAnalyzer } from "../src/hooks/useRenderAnalyzer";
+import { useRenderCount } from "../src/hooks/useRenderCount";
 import { withPerformanceAnalyzer } from "../src/hoc/withPerformanceAnalyzer";
 import {
   clearMetrics,
@@ -135,5 +136,68 @@ describe("Production mode", () => {
     } finally {
       process.env["NODE_ENV"] = originalEnv ?? "development";
     }
+  });
+});
+
+// ── Feature #6: useRenderCount ───────────────────────────────────────────────
+describe("useRenderCount", () => {
+  it("returns 0 for an untracked component", () => {
+    function Badge() {
+      const count = useRenderCount("NeverTracked");
+      return React.createElement("div", { "data-testid": "badge" }, count);
+    }
+    const { getByTestId } = render(React.createElement(Badge));
+    expect(getByTestId("badge").textContent).toBe("0");
+  });
+
+  it("reflects the render count of a component tracked via useRenderAnalyzer", async () => {
+    function Tracked({ n }: { n: number }) {
+      useRenderAnalyzer("RCTracked", { n } as Record<string, unknown>);
+      return React.createElement("div", null, "tracked");
+    }
+    function Observer() {
+      const count = useRenderCount("RCTracked");
+      return React.createElement("div", { "data-testid": "rc" }, count);
+    }
+    function App({ n }: { n: number }) {
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Tracked, { n }),
+        React.createElement(Observer)
+      );
+    }
+
+    const { rerender, getByTestId } = render(React.createElement(App, { n: 1 }));
+    await act(async () => {
+      rerender(React.createElement(App, { n: 2 }));
+    });
+
+    const count = Number(getByTestId("rc").textContent);
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("resets to 0 after clearMetrics", async () => {
+    function Comp() {
+      useRenderAnalyzer("RCClear", {} as Record<string, unknown>);
+      return React.createElement("div", null, "x");
+    }
+    function Observer() {
+      const count = useRenderCount("RCClear");
+      return React.createElement("div", { "data-testid": "rc-clear" }, count);
+    }
+    function App() {
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Comp),
+        React.createElement(Observer)
+      );
+    }
+
+    const { getByTestId } = render(React.createElement(App));
+    // After mount the count should be >= 1
+    await act(async () => { clearMetrics(); });
+    expect(Number(getByTestId("rc-clear").textContent)).toBe(0);
   });
 });
