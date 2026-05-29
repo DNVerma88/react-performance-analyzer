@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — build, lint, test and audit without publishing"
+        type: boolean
+        default: true
+        required: false
 
 jobs:
   publish:
@@ -32,6 +39,13 @@ jobs:
       - name: Publish
         # Uses OIDC Trusted Publishing when NPM_TOKEN is not set.
         # Falls back to token-based auth when NPM_TOKEN secret is present.
-        run: npm publish --provenance --access public
+        # When triggered via workflow_dispatch with dry_run=true, --dry-run is
+        # appended so the full pipeline runs but nothing is published.
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npm publish --provenance --access public --dry-run
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
