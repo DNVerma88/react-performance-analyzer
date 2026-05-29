@@ -6,11 +6,13 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Dry run — build, lint, test and audit without publishing"
-        type: boolean
-        default: true
-        required: false
+      version:
+        description: "Version to publish (e.g. 1.1.0) — updates package.json before publishing"
+        type: string
+        required: true
+
+# Shows the version in the workflow run list for both tag and manual triggers
+run-name: "Publish to npm v${{ inputs.version || github.ref_name }}"
 
 jobs:
   publish:
@@ -33,19 +35,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set version
+        if: ${{ inputs.version != '' }}
+        run: npm version "${{ inputs.version }}" --no-git-tag-version
+
       - name: Build, lint, test, audit
         run: npm run prepublishOnly
 
       - name: Publish
         # Uses OIDC Trusted Publishing when NPM_TOKEN is not set.
         # Falls back to token-based auth when NPM_TOKEN secret is present.
-        # When triggered via workflow_dispatch with dry_run=true, --dry-run is
-        # appended so the full pipeline runs but nothing is published.
-        run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            npm publish --provenance --access public --dry-run
-          else
-            npm publish --provenance --access public
-          fi
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
