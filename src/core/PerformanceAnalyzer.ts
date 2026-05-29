@@ -3,9 +3,11 @@ import {
   getOptions,
   getOrCreateMetric,
   recordRender,
+  recordPropChange,
 } from "./PerformanceStore.js";
 import { shallowDiffProps } from "../utils/propsAnalyzer.js";
 import { estimatePropsSizeBytes } from "../utils/sizeEstimator.js";
+import { isDevelopment, sanitizeComponentId } from "../utils/environment.js";
 
 /**
  * Called by the React Profiler onRender callback.
@@ -74,16 +76,25 @@ export function analyzeProps(
       opts.trackFunctionProps
     );
 
+    // Sanitize and persist which props changed so developers can see the
+    // "why did this re-render?" answer directly in the metric (feature #4).
+    const safeChangedKeys = changedKeys.map((k) => sanitizeComponentId(k));
+    recordPropChange(id, safeChangedKeys);
+
     for (const key of unstableFunctionKeys) {
+      // Sanitize the prop key name before embedding it in the warning message
+      // to prevent injection if a prop key contains special characters (same
+      // class of issue as VULN-02).
+      const safeKey = sanitizeComponentId(key);
       addWarning({
         type: "unstable-prop",
-        message: `<${id}> prop "${key}" is an unstable function reference. Wrap with useCallback.`,
+        message: `<${id}> prop "${safeKey}" is an unstable function reference. Wrap with useCallback.`,
         componentId: id,
         timestamp: performance.now(),
       });
     }
 
-    if (changedKeys.length === 0 && opts.logToConsole) {
+    if (changedKeys.length === 0 && opts.logToConsole && isDevelopment()) {
       // Triggered a re-render but no prop changed — possible missing memo
       const metric = getOrCreateMetric(id);
       if (metric.renderCount > 1) {

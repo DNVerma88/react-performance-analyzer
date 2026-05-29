@@ -4,7 +4,7 @@ import {
   handleProfilerRender,
 } from "../core/PerformanceAnalyzer.js";
 import { getOptions } from "../core/PerformanceStore.js";
-import { isDevelopment } from "../utils/environment.js";
+import { isDevelopment, sanitizeComponentId } from "../utils/environment.js";
 
 /**
  * Drop-in hook to track renders and prop changes for a given component.
@@ -16,6 +16,7 @@ export function useRenderAnalyzer(
   id: string,
   props: Record<string, unknown>
 ): void {
+  const safeId = sanitizeComponentId(id);
   const opts = getOptions();
   const active =
     (opts.allowProduction ? true : isDevelopment()) && opts.enabled !== false;
@@ -35,8 +36,8 @@ export function useRenderAnalyzer(
     const phase = mountedRef.current ? "update" : "mount";
     mountedRef.current = true;
 
-    handleProfilerRender(id, phase, duration);
-    analyzeProps(id, prevPropsRef.current, props);
+    handleProfilerRender(safeId, phase, duration);
+    analyzeProps(safeId, prevPropsRef.current, props);
     prevPropsRef.current = props;
   });
 }

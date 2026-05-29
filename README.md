@@ -90,6 +90,21 @@ function UserList(props) {
 
 Tracks prop changes, detects unstable function references, and detects large prop objects.
 
+### useRenderCount hook
+
+Live render count for a tracked component, powered by `useSyncExternalStore`. Updates automatically whenever the component re-renders — useful for displaying render counts in dev UI or asserting counts in tests.
+
+```tsx
+import { useRenderCount } from "react-performance-analyzer";
+
+function DevBadge({ id }: { id: string }) {
+  const count = useRenderCount(id);
+  return <span style={{ fontSize: 10 }}>renders: {count}</span>;
+}
+```
+
+Returns `0` for components that have not been tracked yet, and resets to `0` after `clearPerformanceReport()`.
+
 ### Higher-Order Component (HOC)
 
 ```tsx
@@ -109,24 +124,46 @@ import {
   printPerformanceReport,
   exportReportJSON,
   configurePerformanceAnalyzer,
+  getMetric,
+  subscribeToStore,
 } from "react-performance-analyzer";
 
-// Print a console table summary
+// Print a console table summary (sorted by render count by default)
 printPerformanceReport();
+
+// Sort by slowest average render duration
+printPerformanceReport({ sortBy: "avgDuration" });
 
 // Get the full PerformanceReport object (metrics + totals + generatedAt)
 const report = getPerformanceReport();
 // report.metrics — ComponentPerformanceMetric[]
 // report.totalComponents, report.totalRenders, report.totalWarnings
 
-// Export as JSON string
+// Look up a single component's metrics without building the full report
+const metric = getMetric("UserList"); // returns ComponentPerformanceMetric | undefined
+
+// Export as JSON string (capped + sorted)
 const json = exportReportJSON();
+const json2 = exportReportJSON({
+  sortBy: "maxDuration",       // sort by slowest peak render
+  maxComponents: 50,           // include at most 50 components
+  maxWarningsPerComponent: 10, // include at most 10 warnings per component
+});
+
+// Subscribe to store mutations (integrates with useSyncExternalStore)
+const unsubscribe = subscribeToStore(() => console.log("store updated"));
+unsubscribe(); // call to remove the subscription
 
 // Reset all collected data
 clearPerformanceReport();
 
 // Reconfigure at runtime
 configurePerformanceAnalyzer({ slowRenderThresholdMs: 8 });
+
+// Route warnings to an external service
+configurePerformanceAnalyzer({
+  onWarning: (w) => Sentry.captureMessage(w.message, "warning"),
+});
 ```
 
 ---
@@ -136,7 +173,7 @@ configurePerformanceAnalyzer({ slowRenderThresholdMs: 8 });
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Enable/disable the analyzer |
-| `logToConsole` | `boolean` | `true` | Print warnings to console |
+| `logToConsole` | `boolean` | `false` | Print warnings to the browser console |
 | `slowRenderThresholdMs` | `number` | `16` | Warn when render exceeds this (ms) |
 | `frequentRenderThreshold` | `number` | `10` | Warn when render count exceeds this |
 | `largePropsThresholdBytes` | `number` | `50000` | Warn when props exceed this size |
@@ -145,6 +182,7 @@ configurePerformanceAnalyzer({ slowRenderThresholdMs: 8 });
 | `includeMounts` | `boolean` | `true` | Track initial mounts |
 | `includeUpdates` | `boolean` | `true` | Track subsequent updates |
 | `allowProduction` | `boolean` | `false` | Enable in production builds |
+| `onWarning` | `(w: PerformanceWarning) => void` | `undefined` | Callback fired on every warning — route to Sentry, Datadog, or a custom logger. Errors thrown inside are silently caught. |
 
 ---
 
@@ -160,13 +198,13 @@ configurePerformanceAnalyzer({ slowRenderThresholdMs: 8 });
   Components tracked: 3
   Total renders: 24
   Total warnings: 4
-  ┌──────────────┬─────────┬────────┬─────────┬───────┬───────┬────────┬──────────┐
-  │ id           │ renders │ mounts │ updates │ avgMs │ maxMs │ lastMs │ warnings │
-  ├──────────────┼─────────┼────────┼─────────┼───────┼───────┼────────┼──────────┤
-  │ UserList     │       3 │      1 │       2 │  5.10 │ 34.21 │   4.20 │        1 │
-  │ Counter      │      12 │      1 │      11 │  2.30 │  3.10 │   2.10 │        3 │
-  │ FrequentComp │       9 │      1 │       8 │  1.80 │  2.50 │   1.90 │        0 │
-  └──────────────┴─────────┴────────┴─────────┴───────┴───────┴────────┴──────────┘
+  ┌──────────────┬─────────┬────────┬─────────┬───────┬───────┬───────┬────────┬──────────┐
+  │ id           │ renders │ mounts │ updates │ avgMs │ minMs │ maxMs │ lastMs │ warnings │
+  ├──────────────┼─────────┼────────┼─────────┼───────┼───────┼───────┼────────┼──────────┤
+  │ UserList     │       3 │      1 │       2 │  5.10 │  3.80 │ 34.21 │   4.20 │        1 │
+  │ Counter      │      12 │      1 │      11 │  2.30 │  1.90 │  3.10 │   2.10 │        3 │
+  │ FrequentComp │       9 │      1 │       8 │  1.80 │  1.50 │  2.50 │   1.90 │        0 │
+  └──────────────┴─────────┴────────┴─────────┴───────┴───────┴───────┴────────┴──────────┘
 ```
 
 ---
@@ -181,9 +219,15 @@ interface ComponentPerformanceMetric {
   updateCount: number;
   totalDurationMs: number;
   averageDurationMs: number;
+  /** Fastest single render observed. Set on the first render. */
+  minDurationMs: number;
   maxDurationMs: number;
   lastDurationMs: number;
   lastRenderAt: number;
+  /** Circular buffer of the last 10 render durations (oldest → newest). */
+  renderHistory: number[];
+  /** Prop keys that changed on the most recent re-render (sanitized). */
+  lastChangedProps: string[];
   warnings: PerformanceWarning[];
 }
 
@@ -272,6 +316,35 @@ This package follows [Semantic Versioning](https://semver.org/).
 - **Major** — breaking API changes
 
 React major version support is added in **minor** releases when the new version becomes stable and existing APIs remain compatible. Support for old React versions is dropped in **major** releases only.
+
+---
+
+## Changelog
+
+### 1.1.0 — 2026-05-29
+
+**New features**
+
+- **`onWarning` callback** — `PerformanceAnalyzerOptions` now accepts an `onWarning` callback invoked synchronously on every warning. Use it to route warnings to Sentry, Datadog, or any custom logger. Errors thrown inside the callback are silently caught so they never crash the profiler.
+- **`getMetric(id)`** — look up a single component's metric by ID without building the full report. Returns `ComponentPerformanceMetric | undefined`.
+- **`minDurationMs`** — `ComponentPerformanceMetric` now tracks the fastest render observed for each component.
+- **`renderHistory`** — circular buffer of the last 10 render durations (oldest → newest) exposed on every metric.
+- **`lastChangedProps`** — the sanitized prop keys that changed on the most recent re-render, exposed on every metric.
+- **`sortBy` option on `printPerformanceReport` and `exportReportJSON`** — sort the output by `"renders"`, `"avgDuration"`, `"maxDuration"`, or `"warnings"` (descending). Default: `"renders"`.
+- **`useRenderCount(id)` hook** — live render count for any tracked component via `useSyncExternalStore`. Updates in real time; returns `0` for untracked components and resets to `0` after `clearPerformanceReport()`.
+- **`subscribeToStore(listener)`** — low-level subscription to store mutations, designed for use with `useSyncExternalStore`.
+
+**Security hardening (backported from audit)**
+
+- `logToConsole` default changed from `true` to `false` — prevents component names from leaking to the browser console in production environments that inadvertently enable the analyzer.
+- Sensitive prop keys (`password`, `token`, `secret`, `ssn`, `cvv`, etc.) are now redacted to `"[Redacted]"` before size estimation.
+- Component IDs and prop key names are sanitized to prevent injection into warning messages and exported JSON.
+- Store memory is now capped: 500 components maximum, 100 warnings per component.
+- `configureStore` clamps numeric thresholds to prevent abuse (minimum: 1 ms for durations, 1024 bytes for props size).
+- All metrics and warnings returned by `getAllMetrics` / `getMetric` are shallow copies — callers cannot mutate the internal store.
+- `exportReportJSON` output is capped (default: 200 components, 50 warnings each) to prevent unbounded JSON generation.
+
+### 1.0.0 — Initial release
 
 ---
 
